@@ -74,8 +74,30 @@ models.yaml → generate.py → docker-compose.yml
 
 - **Qwen3.5 시리즈**: 모든 모델이 비전+텍스트 통합 (early fusion). 별도 VL 버전 불필요.
 - **GPTQ-Int4**: A100에서 안정적, 공식 양자화 모델 제공, vLLM 호환 검증됨.
-- **122B MoE**: GPTQ-Int4 기준 ~79GB, GPU 2장 tp=2로 서빙. 활성 파라미터 10B로 효율적.
-- **35B MoE**: GPTQ-Int4 기준 ~22GB, GPU 1장으로 충분. 활성 파라미터 3B로 빠른 응답.
+- **122B MoE**: GPTQ-Int4 기준 총 ~79GB (tp=2 시 GPU당 ~40GB). 활성 파라미터 10B로 효율적.
+- **35B MoE**: GPTQ-Int4 기준 총 ~22GB, GPU 1장으로 충분. 활성 파라미터 3B로 빠른 응답.
+
+### VRAM Budget
+
+**qwen3.5-122b (GPU 0,1, tp=2)**
+
+| 항목 | GPU당 |
+|---|---|
+| 가용 VRAM (80GB x 0.92) | ~73.6GB |
+| 모델 가중치 (79GB / 2) | ~39.5GB |
+| KV 캐시 여유 | ~34.1GB |
+| swap_space (CPU) | 4GB |
+
+**qwen3.5-35b (GPU 2, tp=1)**
+
+| 항목 | GPU당 |
+|---|---|
+| 가용 VRAM (80GB x 0.92) | ~73.6GB |
+| 모델 가중치 | ~22GB |
+| KV 캐시 여유 | ~51.6GB |
+| swap_space (CPU) | 4GB |
+
+> 비전 요청(이미지 임베딩)은 추가 VRAM을 소비하므로 `--limit-mm-per-prompt`로 제한 필요.
 
 ---
 
@@ -86,8 +108,8 @@ models.yaml → generate.py → docker-compose.yml
 ```yaml
 global:
   model_base_path: /mnt/models
-  vllm_image: vllm/vllm-openai:latest
-  nginx_port: 8000
+  vllm_image: vllm/vllm-openai:v0.8.5    # 버전 고정, latest 사용 금지
+  gateway_port: 8000
   api_key: ""
 
 models:
@@ -107,8 +129,8 @@ models:
     swap_space: 4
     extra_args:
       - "--trust-remote-code"
-      - "--reasoning-parser"
-      - "qwen3"
+      - "--reasoning-parser=qwen3"
+      - "--limit-mm-per-prompt=image=5"
 
   qwen3.5-35b:
     enabled: true
@@ -126,8 +148,8 @@ models:
     swap_space: 4
     extra_args:
       - "--trust-remote-code"
-      - "--reasoning-parser"
-      - "qwen3"
+      - "--reasoning-parser=qwen3"
+      - "--limit-mm-per-prompt=image=5"
 ```
 
 ### Parameter Rationale
@@ -163,9 +185,10 @@ models.yaml → docker-compose.yml 자동 생성.
 **기능:**
 1. 모델 라우팅 — request body의 model 필드로 올바른 vLLM 컨테이너에 프록시
 2. /v1/models 통합 — 모든 vLLM 컨테이너의 모델 목록을 합쳐서 반환
-3. /health 통합 — 각 vLLM 헬스 상태를 종합해서 반환
+3. /health 통합 — 각 vLLM 헬스 상태를 종합. 일부 모델 다운 시 `degraded` 상태 반환, 전체 다운 시 503
 4. 스트리밍 지원 — SSE 스트리밍 응답 그대로 전달
-5. 에러 처리 — 잘못된 model명이면 사용 가능한 모델 목록과 함께 422 반환
+5. 에러 처리 — 잘못된 model명이면 사용 가능한 모델 목록과 함께 422 반환. 대상 모델 다운 시 503
+6. 요청 제한 — 최대 request body 크기 제한 (base64 이미지 포함 시 대용량 가능)
 
 **라우팅 테이블:** models.yaml에서 자동 로드.
 
@@ -173,10 +196,12 @@ models.yaml → docker-compose.yml 자동 생성.
 
 ### vLLM Containers
 
-- 공식 이미지 `vllm/vllm-openai:latest` 사용
+- 공식 이미지 사용 (버전 고정, `models.yaml`의 `vllm_image`로 관리)
 - 커스텀 Dockerfile 불필요
 - 모델별 1개 컨테이너
+- `restart: unless-stopped` — 크래시/OOM/재부팅 시 자동 재시작
 - healthcheck: /health 엔드포인트, start_period 300s (모델 로딩 대기)
+- Docker 로그 로테이션: `max-size: 100m`, `max-file: 3` (디스크 고갈 방지)
 
 ---
 
@@ -259,9 +284,36 @@ response = client.chat.completions.create(
 
 ---
 
+## Model Upgrade Procedure
+
+모델 가중치 또는 양자화 변경 시:
+
+```bash
+# 1. 새 모델 다운로드 (기존 모델과 별도 디렉토리)
+huggingface-cli download Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 --revision v2 --local-dir /mnt/models/Qwen3.5-122B-A10B-GPTQ-Int4-v2
+
+# 2. models.yaml의 model_path 변경
+# 3. 재생성 & 재시작
+python generate.py
+docker compose up -d
+```
+
+> 모델 이름(qwen3.5-122b)은 API 인터페이스이므로 가급적 유지. 내부 가중치만 교체.
+
+---
+
+## Known Risks
+
+- **Gateway SPOF**: 단일 FastAPI 프로세스. 크래시 시 전체 접근 불가. 향후 복수 인스턴스 고려.
+- **비전 메모리 스파이크**: 고해상도 이미지 다수 포함 요청 시 OOM 가능. `--limit-mm-per-prompt`로 완화.
+- **NUMA 경계**: GPU 0 (NUMA 0)과 GPU 1 (NUMA 1)이 다른 NUMA 노드. NVLink으로 통신하므로 영향 미미하나, CPU 피닝 시 주의.
+
+---
+
 ## Future Extensions
 
 - **인증**: api_key 설정 시 gateway에서 Bearer 토큰 검증
 - **모니터링**: Prometheus metrics 엔드포인트 추가, Grafana 연동
 - **모델 추가**: GPU 3에 추가 모델 배치
 - **로드 밸런싱**: 같은 모델의 복수 인스턴스 지원
+- **Gateway HA**: 복수 gateway 인스턴스 + 로드 밸런서
