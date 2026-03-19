@@ -44,3 +44,75 @@ def validate_config(config: dict) -> None:
             print(f"Error: Port {port} conflict between '{port_assignments[port]}' and '{name}'", file=sys.stderr)
             sys.exit(1)
         port_assignments[port] = name
+
+
+def _build_vllm_command(model_name: str, model: dict, base_path: str) -> list[str]:
+    model_full_path = f"/models/{model['model_path']}"
+    cmd = [
+        "--model", model_full_path,
+        "--served-model-name", model_name,
+        "--tensor-parallel-size", str(model["tensor_parallel"]),
+        "--dtype", model["dtype"],
+        "--max-model-len", str(model["max_model_len"]),
+        "--gpu-memory-utilization", str(model["gpu_memory_utilization"]),
+        "--max-num-seqs", str(model["max_num_seqs"]),
+        "--max-num-batched-tokens", str(model["max_num_batched_tokens"]),
+        "--swap-space", str(model["swap_space"]),
+    ]
+    if model.get("quantization"):
+        cmd.extend(["--quantization", model["quantization"]])
+    for arg in model.get("extra_args", []):
+        cmd.append(arg)
+    return cmd
+
+
+def generate_compose(config: dict) -> str:
+    global_cfg = config["global"]
+    models = _enabled_models(config)
+    base_path = global_cfg["model_base_path"]
+    services = {}
+    for name, model in models.items():
+        gpu_ids = [str(g) for g in model["gpus"]]
+        services[name] = {
+            "image": global_cfg["vllm_image"],
+            "container_name": f"vllm-{name}",
+            "ports": [f"{model['port']}:8000"],
+            "volumes": [f"{base_path}:/models:ro"],
+            "command": _build_vllm_command(name, model, base_path),
+            "deploy": {
+                "resources": {
+                    "reservations": {
+                        "devices": [{
+                            "driver": "nvidia",
+                            "device_ids": gpu_ids,
+                            "capabilities": ["gpu"],
+                        }]
+                    }
+                }
+            },
+            "restart": "unless-stopped",
+            "logging": {
+                "driver": "json-file",
+                "options": {"max-size": "100m", "max-file": "3"},
+            },
+            "healthcheck": {
+                "test": "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\"",
+                "interval": "30s",
+                "timeout": "10s",
+                "retries": 3,
+                "start_period": "300s",
+            },
+        }
+    services["gateway"] = {
+        "build": "./gateway",
+        "container_name": "llm-gateway",
+        "ports": [f"{global_cfg['gateway_port']}:8000"],
+        "volumes": ["./models.yaml:/app/models.yaml:ro"],
+        "depends_on": list(models.keys()),
+        "restart": "unless-stopped",
+        "logging": {
+            "driver": "json-file",
+            "options": {"max-size": "100m", "max-file": "3"},
+        },
+    }
+    return yaml.dump({"services": services}, default_flow_style=False, sort_keys=False)
