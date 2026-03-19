@@ -1,0 +1,44 @@
+global:
+  model_base_path: /mnt/models
+  vllm_image: vllm/vllm-openai:v0.8.5
+  gateway_port: 8000
+  api_key: ""
+
+models:
+  qwen3.5-122b:
+    enabled: true
+    model_id: Qwen/Qwen3.5-122B-A10B-GPTQ-Int4
+    model_path: Qwen3.5-122B-A10B-GPTQ-Int4
+    port: 8001
+    gpus: [0, 1]
+    tensor_parallel: 2
+    dtype: bfloat16
+    quantization: gptq
+    max_model_len: 32768
+    gpu_memory_utilization: 0.92
+    max_num_seqs: 64
+    max_num_batched_tokens: 32768
+    swap_space: 4
+    extra_args:
+      - "--trust-remote-code"
+      - "--reasoning-parser=qwen3"
+      - "--limit-mm-per-prompt=image=5"
+
+  qwen3.5-35b:
+    enabled: true
+    model_id: Qwen/Qwen3.5-35B-A3B-GPTQ-Int4
+    model_path: Qwen3.5-35B-A3B-GPTQ-Int4
+    port: 8002
+    gpus: [2]
+    tensor_parallel: 1
+    dtype: bfloat16
+    quantization: gptq
+    max_model_len: 65536
+    gpu_memory_utilization: 0.92
+    max_num_seqs: 128
+    max_num_batched_tokens: 32768
+    swap_space: 4
+    extra_args:
+      - "--trust-remote-code"
+      - "--reasoning-parser=qwen3"
+      - "--limit-mm-per-prompt=image=5"
