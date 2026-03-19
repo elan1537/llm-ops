@@ -139,3 +139,18 @@ class TestGenerateCompose:
         config["models"]["disabled-model"] = {**config["models"]["test-model"], "enabled": False, "port": 8002, "gpus": [2]}
         parsed = yaml.safe_load(generate_compose(config))
         assert "disabled-model" not in parsed["services"]
+
+class TestMain:
+    def test_writes_compose_file(self, tmp_path):
+        from generate import load_config, validate_config, generate_compose
+        config_data = {"global": {"model_base_path": "/mnt/models", "vllm_image": "vllm/vllm-openai:v0.8.5", "gateway_port": 8000, "api_key": ""}, "models": {"test-model": {"enabled": True, "model_id": "org/model", "model_path": "model-dir", "port": 8001, "gpus": [0], "tensor_parallel": 1, "dtype": "bfloat16", "quantization": "gptq", "max_model_len": 8192, "gpu_memory_utilization": 0.9, "max_num_seqs": 64, "max_num_batched_tokens": 8192, "swap_space": 4, "extra_args": []}}}
+        config_path = write_yaml(tmp_path, config_data)
+        output_path = tmp_path / "docker-compose.yml"
+        config = load_config(config_path)
+        validate_config(config)
+        content = generate_compose(config)
+        output_path.write_text(content)
+        assert output_path.exists()
+        parsed = yaml.safe_load(output_path.read_text())
+        assert "test-model" in parsed["services"]
+        assert "gateway" in parsed["services"]

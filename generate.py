@@ -116,3 +116,28 @@ def generate_compose(config: dict) -> str:
         },
     }
     return yaml.dump({"services": services}, default_flow_style=False, sort_keys=False)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate docker-compose.yml from models.yaml")
+    parser.add_argument("--config", default="models.yaml", help="Path to models.yaml")
+    parser.add_argument("--output", default="docker-compose.yml", help="Output path")
+    args = parser.parse_args()
+    config = load_config(args.config)
+    validate_config(config)
+    base_path = Path(config["global"]["model_base_path"])
+    for name, model in _enabled_models(config).items():
+        model_dir = base_path / model["model_path"]
+        if not model_dir.exists():
+            print(f"Warning: Model path not found: {model_dir} (model: {name})", file=sys.stderr)
+    content = generate_compose(config)
+    with open(args.output, "w") as f:
+        f.write(content)
+    models = _enabled_models(config)
+    print(f"Generated {args.output} with {len(models)} model(s):")
+    for name, model in models.items():
+        print(f"  - {name}: GPU {model['gpus']}, port {model['port']}")
+
+
+if __name__ == "__main__":
+    main()
