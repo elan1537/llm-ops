@@ -140,6 +140,34 @@ class TestGenerateCompose:
         parsed = yaml.safe_load(generate_compose(config))
         assert "disabled-model" not in parsed["services"]
 
+class TestEndToEnd:
+    def test_full_pipeline_with_real_config(self):
+        """Test with the actual models.yaml from the project."""
+        from generate import load_config, validate_config, generate_compose
+        config = load_config("models.yaml")
+        validate_config(config)
+        content = generate_compose(config)
+        parsed = yaml.safe_load(content)
+
+        # Should have both models + gateway
+        assert "qwen3.5-122b" in parsed["services"]
+        assert "qwen3.5-35b" in parsed["services"]
+        assert "gateway" in parsed["services"]
+
+        # 122b should have 2 GPUs
+        devices_122b = parsed["services"]["qwen3.5-122b"]["deploy"]["resources"]["reservations"]["devices"]
+        assert devices_122b[0]["device_ids"] == ["0", "1"]
+
+        # 35b should have 1 GPU
+        devices_35b = parsed["services"]["qwen3.5-35b"]["deploy"]["resources"]["reservations"]["devices"]
+        assert devices_35b[0]["device_ids"] == ["2"]
+
+        # Gateway should depend on both models
+        deps = parsed["services"]["gateway"]["depends_on"]
+        assert "qwen3.5-122b" in deps
+        assert "qwen3.5-35b" in deps
+
+
 class TestMain:
     def test_writes_compose_file(self, tmp_path):
         from generate import load_config, validate_config, generate_compose
