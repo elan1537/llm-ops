@@ -1,6 +1,6 @@
 global:
-  model_base_path: /mnt/models
-  vllm_image: vllm/vllm-openai:v0.8.5
+  model_base_path: /home/separk/workspace/pungkook/models
+  vllm_image: vllm/vllm-openai:latest
   gateway_port: 8000
   api_key: ""
 
@@ -12,7 +12,7 @@ models:
     port: 8001
     gpus: [0, 1]
     tensor_parallel: 2
-    dtype: bfloat16
+    dtype: float16
     quantization: gptq
     max_model_len: 32768
     gpu_memory_utilization: 0.92
@@ -21,8 +21,24 @@ models:
     swap_space: 4
     extra_args:
       - "--trust-remote-code"
-      - "--reasoning-parser=qwen3"
-      - "--limit-mm-per-prompt=image=5"
+      - '--limit-mm-per-prompt={"image":5}'
+
+  nemotron-3-nano:
+    enabled: true
+    model_id: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+    model_path: NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+    port: 8003
+    gpus: [3]
+    tensor_parallel: 1
+    dtype: bfloat16
+    quantization: null
+    max_model_len: 32768
+    gpu_memory_utilization: 0.92
+    max_num_seqs: 128
+    max_num_batched_tokens: 32768
+    swap_space: 4
+    extra_args:
+      - "--trust-remote-code"
 
   qwen3.5-35b:
     enabled: true
@@ -31,7 +47,7 @@ models:
     port: 8002
     gpus: [2]
     tensor_parallel: 1
-    dtype: bfloat16
+    dtype: float16
     quantization: gptq
     max_model_len: 65536
     gpu_memory_utilization: 0.92
@@ -40,5 +56,4 @@ models:
     swap_space: 4
     extra_args:
       - "--trust-remote-code"
-      - "--reasoning-parser=qwen3"
-      - "--limit-mm-per-prompt=image=5"
+      - '--limit-mm-per-prompt={"image":5}'
