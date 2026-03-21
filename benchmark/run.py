@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import statistics
+import time
 from datetime import datetime
 
 from tqdm import tqdm
@@ -23,6 +24,13 @@ import benchmark.evaluators.exact_match
 import benchmark.evaluators.f1_em
 import benchmark.evaluators.anls
 import benchmark.evaluators.llm_judge
+
+
+def _fmt_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(int(seconds), 60)
+    return f"{m}m {s}s"
 
 
 class BenchmarkRunner:
@@ -122,6 +130,24 @@ class BenchmarkRunner:
         temperatures = self.settings["temperatures"]
         stochastic_runs = self.settings["stochastic_runs"]
 
+        # --- Header ---
+        enabled_ds = [k for k, v in self.config["datasets"].items()
+                      if v.get("enabled") and (not dataset_filter or k in dataset_filter)]
+        model_names = [m["name"] for m in self.config["models"]]
+        if model_filter:
+            model_names = [n for n in model_names if n in model_filter]
+
+        print("=" * 60)
+        print("  LLM Benchmark Runner")
+        print("=" * 60)
+        print(f"  Models:       {', '.join(model_names)}")
+        print(f"  Datasets:     {', '.join(enabled_ds)}")
+        print(f"  Temperatures: {temperatures}")
+        print(f"  Samples:      {sample_override or 'per-dataset config'}")
+        print(f"  Stochastic:   {stochastic_runs} runs (for t>0)")
+        print(f"  Concurrency:  {self.settings['concurrent_requests']}")
+        print("=" * 60)
+
         judge_client = None
         judge_cfg = self.config.get("judge", {})
         if judge_cfg.get("base_url"):
@@ -131,6 +157,12 @@ class BenchmarkRunner:
                 timeout=self.settings["timeout"],
                 max_concurrent=2,
             )
+            print(f"  Judge:        {judge_cfg['model_id']} @ {judge_cfg['base_url']}")
+        else:
+            print("  Judge:        (not configured)")
+        print("=" * 60)
+
+        run_start = time.time()
 
         for ds_name, ds_config in self.config["datasets"].items():
             if not ds_config.get("enabled", False):
@@ -138,26 +170,33 @@ class BenchmarkRunner:
             if dataset_filter and ds_name not in dataset_filter:
                 continue
 
-            print(f"\n[{ds_name.upper()}]")
+            n_samples = sample_override or ds_config.get("samples", 100)
+            evaluator_name = ds_config["evaluator"]
+            vision_only = ds_config.get("vision_only", False)
+
+            print(f"\n{'─' * 60}")
+            print(f"  [{ds_name.upper()}]  samples={n_samples}  evaluator={evaluator_name}"
+                  f"{'  (vision-only)' if vision_only else ''}")
+            print(f"{'─' * 60}")
 
             ds_cls = DATASET_REGISTRY.get(ds_name)
             if not ds_cls:
-                print(f"  WARNING: dataset '{ds_name}' not registered, skipping")
+                print(f"  ⚠ dataset '{ds_name}' not registered, skipping")
                 continue
 
             dataset = ds_cls(ds_config)
-            vision_only = ds_config.get("vision_only", False)
-            models = self._filter_models(vision_only)
+            print(f"  Loading dataset...", end=" ", flush=True)
+            ds_load_start = time.time()
+            samples = dataset.load_samples(n=n_samples, seed=42)
+            print(f"done ({_fmt_duration(time.time() - ds_load_start)}, {len(samples)} samples)")
 
+            models = self._filter_models(vision_only)
             if model_filter:
                 models = [m for m in models if m["name"] in model_filter]
 
-            n_samples = sample_override or ds_config.get("samples", 100)
-            samples = dataset.load_samples(n=n_samples, seed=42)
-
             results[ds_name] = {}
 
-            for model in models:
+            for mi, model in enumerate(models):
                 model_name = model["name"]
                 client = BenchmarkClient(
                     base_url=model["base_url"],
@@ -172,30 +211,67 @@ class BenchmarkRunner:
                     runs_needed = 1 if temp == 0.0 else stochastic_runs
 
                     if runs_needed == 1:
+                        print(f"\n  [{mi+1}/{len(models)}] {model_name}  t={temp}")
+                        t0 = time.time()
                         predictions = await self._run_model_on_samples(
                             client, model_name, samples, temp,
                         )
+                        infer_time = time.time() - t0
+                        error_count = sum(1 for p in predictions if p.startswith("ERROR:"))
+                        print(f"  Inference done: {_fmt_duration(infer_time)}"
+                              f"  ({len(predictions) - error_count}/{len(predictions)} ok"
+                              f"{f', {error_count} errors' if error_count else ''})")
+
+                        print(f"  Evaluating ({evaluator_name})...", end=" ", flush=True)
                         eval_result = await self._evaluate(
                             ds_name, ds_config, ds_config["evaluator"],
                             predictions, samples, judge_client,
                         )
+                        print("done")
                         results[ds_name][model_name][f"temperature_{temp}"] = eval_result
                         self._print_result(ds_name, model_name, temp, eval_result)
                     else:
+                        print(f"\n  [{mi+1}/{len(models)}] {model_name}  t={temp}  ({runs_needed} runs)")
                         run_results = []
                         for run_i in range(runs_needed):
+                            print(f"    Run {run_i+1}/{runs_needed}...", flush=True)
+                            t0 = time.time()
                             predictions = await self._run_model_on_samples(
                                 client, model_name, samples, temp,
                             )
+                            infer_time = time.time() - t0
+                            error_count = sum(1 for p in predictions if p.startswith("ERROR:"))
+                            print(f"    Inference: {_fmt_duration(infer_time)}"
+                                  f"  ({len(predictions) - error_count}/{len(predictions)} ok"
+                                  f"{f', {error_count} errors' if error_count else ''})")
+
                             eval_result = await self._evaluate(
                                 ds_name, ds_config, ds_config["evaluator"],
                                 predictions, samples, judge_client,
                             )
                             run_results.append(eval_result)
+                            # Show per-run score
+                            sk = self._find_score_key(eval_result)
+                            print(f"    Score: {eval_result[sk]:.1%}")
 
                         agg = self._aggregate_runs(run_results)
                         results[ds_name][model_name][f"temperature_{temp}"] = agg
                         self._print_result(ds_name, model_name, temp, agg)
+
+        total_time = time.time() - run_start
+
+        # --- Summary table ---
+        print(f"\n{'=' * 60}")
+        print("  RESULTS SUMMARY")
+        print(f"{'=' * 60}")
+        for ds_name, ds_results in results.items():
+            print(f"\n  [{ds_name.upper()}]")
+            for model_name, temp_results in ds_results.items():
+                for temp_key, result in temp_results.items():
+                    temp = temp_key.replace("temperature_", "t=")
+                    self._print_result_summary(model_name, temp, result)
+        print(f"\n{'─' * 60}")
+        print(f"  Total time: {_fmt_duration(total_time)}")
 
         output = {
             "timestamp": timestamp,
@@ -207,7 +283,8 @@ class BenchmarkRunner:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(output, f, ensure_ascii=False, indent=2)
 
-        print(f"\nResults saved: {filepath}")
+        print(f"  Results saved: {filepath}")
+        print(f"{'=' * 60}")
 
     def _aggregate_runs(self, run_results: list[dict]) -> dict:
         score_key = self._find_score_key(run_results[0])
@@ -226,28 +303,38 @@ class BenchmarkRunner:
                 return key
         return "score"
 
-    def _print_result(self, ds_name: str, model_name: str, temp: float, result: dict):
+    def _format_score(self, result: dict) -> str:
         score_key = self._find_score_key(result)
-        score = result.get("mean_score", result.get(score_key, 0))
         errors = result.get("errors", 0)
         total = result.get("total", 0)
+        error_str = f", {errors} err" if errors else ""
 
         if "std" in result:
+            score = result["mean_score"]
             std = result["std"]
-            print(f"  {model_name:<25} t={temp}: {score:.1%} (+/-{std:.1%})")
-        elif score_key in ("f1", "em"):
+            return f"{score:.1%} (±{std:.1%}{error_str})"
+        elif score_key == "f1":
             f1 = result.get("f1", 0)
             em = result.get("em", 0)
-            print(f"  {model_name:<25} t={temp}: F1={f1:.1%} EM={em:.1%}")
+            return f"F1={f1:.1%} EM={em:.1%}{error_str}"
         elif score_key == "mean_score":
-            print(f"  {model_name:<25} t={temp}: {score:.1f}/5.0 (judge)")
+            score = result["mean_score"]
+            return f"{score:.1f}/5.0 (judge{error_str})"
         elif score_key == "anls":
             anls = result.get("anls", 0)
-            print(f"  {model_name:<25} t={temp}: {anls:.1%} ANLS")
+            return f"{anls:.1%} ANLS{error_str}"
         else:
+            score = result.get("score", 0)
             correct = result.get("correct", 0)
-            error_str = f", {errors} errors" if errors else ""
-            print(f"  {model_name:<25} t={temp}: {score:.1%} ({correct}/{total}{error_str})")
+            return f"{score:.1%} ({correct}/{total}{error_str})"
+
+    def _print_result(self, ds_name: str, model_name: str, temp: float, result: dict):
+        score_str = self._format_score(result)
+        print(f"  >> {model_name:<25} t={temp}: {score_str}")
+
+    def _print_result_summary(self, model_name: str, temp: str, result: dict):
+        score_str = self._format_score(result)
+        print(f"    {model_name:<25} {temp:<8} {score_str}")
 
 
 def main():
