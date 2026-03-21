@@ -6,7 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import yaml
 
+from benchmark.client import GenerateResult
 from benchmark.run import BenchmarkRunner
+
+
+def _mock_generate_result(content="A"):
+    return GenerateResult(content=content, prompt_tokens=50, completion_tokens=20)
 
 
 @pytest.fixture
@@ -73,7 +78,7 @@ class TestBenchmarkRunner:
             ))
         }), patch("benchmark.run.BenchmarkClient") as MockClient:
             mock_client_instance = MagicMock()
-            mock_client_instance.generate = AsyncMock(return_value="A")
+            mock_client_instance.generate = AsyncMock(return_value=_mock_generate_result("A"))
             MockClient.return_value = mock_client_instance
 
             runner = BenchmarkRunner(config_path)

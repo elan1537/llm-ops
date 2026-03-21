@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from benchmark.client import BenchmarkClient
+from benchmark.client import BenchmarkClient, GenerateResult
 
 
 @pytest.fixture
@@ -16,13 +16,18 @@ def client():
     )
 
 
+def _mock_response(content="Hello!"):
+    mock = MagicMock()
+    mock.choices = [MagicMock(message=MagicMock(content=content))]
+    mock.usage = MagicMock(prompt_tokens=10, completion_tokens=20)
+    return mock
+
+
 class TestGenerate:
     def test_returns_response_content(self, client):
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content="Hello!"))]
-
         with patch.object(
-            client.client.chat.completions, "create", new_callable=AsyncMock, return_value=mock_response
+            client.client.chat.completions, "create",
+            new_callable=AsyncMock, return_value=_mock_response("Hello!")
         ):
             result = asyncio.run(client.generate(
                 model="test-model",
@@ -30,19 +35,19 @@ class TestGenerate:
                 temperature=0.0,
                 max_tokens=100,
             ))
-            assert result == "Hello!"
+            assert isinstance(result, GenerateResult)
+            assert result.content == "Hello!"
+            assert result.prompt_tokens == 10
+            assert result.completion_tokens == 20
 
     def test_retries_on_failure(self, client):
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content="OK"))]
-
         call_count = 0
         async def flaky_create(**kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise Exception("Server error")
-            return mock_response
+            return _mock_response("OK")
 
         with patch.object(
             client.client.chat.completions, "create", side_effect=flaky_create
@@ -53,7 +58,7 @@ class TestGenerate:
                 temperature=0.0,
                 max_tokens=100,
             ))
-            assert result == "OK"
+            assert result.content == "OK"
             assert call_count == 3
 
     def test_raises_after_max_retries(self, client):
@@ -83,9 +88,7 @@ class TestConcurrency:
             max_concurrent_seen = max(max_concurrent_seen, current_concurrent)
             await asyncio.sleep(0.05)
             current_concurrent -= 1
-            mock = MagicMock()
-            mock.choices = [MagicMock(message=MagicMock(content="ok"))]
-            return mock
+            return _mock_response("ok")
 
         with patch.object(
             client.client.chat.completions, "create", side_effect=slow_create

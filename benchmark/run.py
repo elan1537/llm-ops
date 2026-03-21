@@ -2,13 +2,14 @@ import argparse
 import asyncio
 import json
 import os
+import random
 import statistics
 import time
 from datetime import datetime
 
 from tqdm import tqdm
 
-from benchmark.client import BenchmarkClient
+from benchmark.client import BenchmarkClient, GenerateResult
 from benchmark.config import load_config, validate_config
 from benchmark.datasets import DATASET_REGISTRY
 from benchmark.datasets.base import Sample
@@ -35,6 +36,7 @@ def _fmt_duration(seconds: float) -> str:
 
 class BenchmarkRunner:
     def __init__(self, config_path: str):
+        self._config_path = config_path
         self.config = load_config(config_path)
         validate_config(self.config)
         self.settings = self.config["settings"]
@@ -48,13 +50,11 @@ class BenchmarkRunner:
     async def _run_model_on_samples(
         self, client: BenchmarkClient, model_name: str, samples: list[Sample],
         temperature: float,
-    ) -> list[str]:
+    ) -> tuple[list[str], dict]:
+        """Returns (predictions, token_stats)."""
         tasks = []
         for sample in samples:
-            if isinstance(sample.prompt, list):
-                messages = [{"role": "user", "content": sample.prompt}]
-            else:
-                messages = [{"role": "user", "content": sample.prompt}]
+            messages = [{"role": "user", "content": sample.prompt}]
             tasks.append(client.generate(
                 model=model_name,
                 messages=messages,
@@ -63,14 +63,23 @@ class BenchmarkRunner:
             ))
 
         predictions = []
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
         for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc=f"  {model_name}", leave=False):
             try:
-                result = await coro
-                predictions.append(result)
+                result: GenerateResult = await coro
+                predictions.append(result.content)
+                total_prompt_tokens += result.prompt_tokens
+                total_completion_tokens += result.completion_tokens
             except Exception as e:
                 predictions.append(f"ERROR: {e}")
 
-        return predictions
+        token_stats = {
+            "prompt_tokens": total_prompt_tokens,
+            "completion_tokens": total_completion_tokens,
+            "total_tokens": total_prompt_tokens + total_completion_tokens,
+        }
+        return predictions, token_stats
 
     async def _evaluate(
         self, ds_name: str, ds_config: dict, evaluator_name: str,
@@ -140,13 +149,20 @@ class BenchmarkRunner:
         print("=" * 60)
         print("  LLM Benchmark Runner")
         print("=" * 60)
+        print(f"  Config:       {os.path.abspath(self._config_path)}")
         print(f"  Models:       {', '.join(model_names)}")
+        for m in self.config["models"]:
+            if model_filter and m["name"] not in model_filter:
+                continue
+            vis = "vision" if m.get("vision") else "text"
+            print(f"    - {m['name']:<22} {m['base_url']:<35} ({vis})")
         print(f"  Datasets:     {', '.join(enabled_ds)}")
         print(f"  Temperatures: {temperatures}")
         print(f"  Samples:      {sample_override or 'per-dataset config'}")
         print(f"  Stochastic:   {stochastic_runs} runs (for t>0)")
         print(f"  Concurrency:  {self.settings['concurrent_requests']}")
-        print("=" * 60)
+        print(f"  Timeout:      {self.settings['timeout']}s")
+        print(f"  Max tokens:   {self.settings['max_tokens']}")
 
         judge_client = None
         judge_cfg = self.config.get("judge", {})
@@ -190,6 +206,25 @@ class BenchmarkRunner:
             samples = dataset.load_samples(n=n_samples, seed=42)
             print(f"done ({_fmt_duration(time.time() - ds_load_start)}, {len(samples)} samples)")
 
+            # Show a random sample example
+            example = random.choice(samples)
+            print(f"\n  Sample example (id={example.id}):")
+            if isinstance(example.prompt, list):
+                text_parts = [p["text"] for p in example.prompt if p.get("type") == "text"]
+                prompt_preview = text_parts[0] if text_parts else "(image)"
+                has_image = any(p.get("type") == "image_url" for p in example.prompt)
+                print(f"    Prompt: {prompt_preview[:120]}{'...' if len(prompt_preview) > 120 else ''}")
+                if has_image:
+                    print(f"    (+ image attached)")
+            else:
+                lines = example.prompt.strip().split("\n")
+                for line in lines[:6]:
+                    print(f"    | {line}")
+                if len(lines) > 6:
+                    print(f"    | ... ({len(lines) - 6} more lines)")
+            print(f"    Reference: {example.reference[:80]}{'...' if len(example.reference) > 80 else ''}")
+            print()
+
             models = self._filter_models(vision_only)
             if model_filter:
                 models = [m for m in models if m["name"] in model_filter]
@@ -213,14 +248,19 @@ class BenchmarkRunner:
                     if runs_needed == 1:
                         print(f"\n  [{mi+1}/{len(models)}] {model_name}  t={temp}")
                         t0 = time.time()
-                        predictions = await self._run_model_on_samples(
+                        predictions, token_stats = await self._run_model_on_samples(
                             client, model_name, samples, temp,
                         )
                         infer_time = time.time() - t0
                         error_count = sum(1 for p in predictions if p.startswith("ERROR:"))
+                        tok_s = token_stats["completion_tokens"] / infer_time if infer_time > 0 else 0
                         print(f"  Inference done: {_fmt_duration(infer_time)}"
                               f"  ({len(predictions) - error_count}/{len(predictions)} ok"
                               f"{f', {error_count} errors' if error_count else ''})")
+                        print(f"  Tokens: {token_stats['prompt_tokens']} prompt"
+                              f" + {token_stats['completion_tokens']} completion"
+                              f" = {token_stats['total_tokens']} total"
+                              f"  ({tok_s:.1f} tok/s output)")
 
                         print(f"  Evaluating ({evaluator_name})...", end=" ", flush=True)
                         eval_result = await self._evaluate(
@@ -236,21 +276,22 @@ class BenchmarkRunner:
                         for run_i in range(runs_needed):
                             print(f"    Run {run_i+1}/{runs_needed}...", flush=True)
                             t0 = time.time()
-                            predictions = await self._run_model_on_samples(
+                            predictions, token_stats = await self._run_model_on_samples(
                                 client, model_name, samples, temp,
                             )
                             infer_time = time.time() - t0
                             error_count = sum(1 for p in predictions if p.startswith("ERROR:"))
+                            tok_s = token_stats["completion_tokens"] / infer_time if infer_time > 0 else 0
                             print(f"    Inference: {_fmt_duration(infer_time)}"
                                   f"  ({len(predictions) - error_count}/{len(predictions)} ok"
-                                  f"{f', {error_count} errors' if error_count else ''})")
+                                  f"{f', {error_count} errors' if error_count else ''})"
+                                  f"  {tok_s:.1f} tok/s")
 
                             eval_result = await self._evaluate(
                                 ds_name, ds_config, ds_config["evaluator"],
                                 predictions, samples, judge_client,
                             )
                             run_results.append(eval_result)
-                            # Show per-run score
                             sk = self._find_score_key(eval_result)
                             print(f"    Score: {eval_result[sk]:.1%}")
 
