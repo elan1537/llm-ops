@@ -60,7 +60,7 @@ Gateway(8000)를 통해 `model_id`로 라우팅. 모든 호출은 OpenAI-compati
 
 - **자동 채점**: 객관식 선택지 매칭, 숫자 추출 비교, F1/EM, ANLS
 - **LLM Judge**: Claude Opus — reference + model output을 주고 rubric 기반 1~5점 평가 (충실도, 간결성, 유창성)
-- **Vision**: ANLS(Average Normalized Levenshtein Similarity) 자동 채점, 애매한 케이스는 Judge 보조
+- **Vision**: ANLS(Average Normalized Levenshtein Similarity) 자동 채점, ANLS < 0.5인 케이스는 Judge로 재평가
 - **vision_only 데이터셋**: vision 미지원 모델은 자동 스킵
 
 ## LLM Judge
@@ -113,6 +113,7 @@ datasets:
     samples: 100
     evaluator: anls
     vision_only: true
+    anls_judge_threshold: 0.5
 
 settings:
   temperatures: [0.0, 0.5]
