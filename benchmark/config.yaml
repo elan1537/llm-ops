@@ -1,0 +1,50 @@
+models:
+  - name: qwen3.5-122b
+    base_url: http://localhost:8000/v1
+    model_id: Qwen/Qwen3.5-122B-A10B-GPTQ-Int4
+    vision: true
+  - name: qwen3.5-35b
+    base_url: http://localhost:8000/v1
+    model_id: Qwen/Qwen3.5-35B-A3B-GPTQ-Int4
+    vision: true
+  - name: nemotron-3-nano
+    base_url: http://localhost:8000/v1
+    model_id: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+    vision: false
+
+judge:
+  base_url: http://CHANGE_ME:8080/v1
+  model_id: claude-opus-4-20250514
+  api_key: ""
+
+datasets:
+  kmmlu:
+    enabled: true
+    samples: 200
+    evaluator: exact_match
+  korquad:
+    enabled: true
+    samples: 200
+    evaluator: f1_em
+  xlsum_ko:
+    enabled: true
+    samples: 100
+    evaluator: llm_judge
+  gsm8k:
+    enabled: true
+    samples: 200
+    evaluator: exact_match
+  docvqa:
+    enabled: true
+    samples: 100
+    evaluator: anls
+    vision_only: true
+    anls_judge_threshold: 0.5
+
+settings:
+  temperatures: [0.0, 0.5]
+  stochastic_runs: 3
+  concurrent_requests: 4
+  timeout: 120
+  max_tokens: 2048
+  results_dir: benchmark/results
