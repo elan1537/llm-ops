@@ -1,3 +1,6 @@
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from benchmark.evaluators.exact_match import ExactMatchEvaluator
@@ -96,3 +99,54 @@ class TestANLS:
         ev = ANLSEvaluator()
         result = ev.evaluate(predictions=["completely wrong answer here"], references=["x"])
         assert result["anls"] == 0.0
+
+
+from benchmark.evaluators.llm_judge import LLMJudgeEvaluator
+
+
+class TestLLMJudge:
+    def test_parses_numeric_score(self):
+        mock_client = MagicMock()
+        mock_client.generate = AsyncMock(return_value="4")
+
+        ev = LLMJudgeEvaluator()
+        result = asyncio.run(ev.evaluate_async(
+            client=mock_client,
+            judge_model="claude-opus",
+            predictions=["모델의 요약"],
+            references=["원문 요약"],
+            sources=["원문 텍스트"],
+        ))
+        assert result["mean_score"] == 4.0
+        assert len(result["scores"]) == 1
+
+    def test_parses_score_from_verbose_response(self):
+        mock_client = MagicMock()
+        mock_client.generate = AsyncMock(
+            return_value="충실도: 4\n간결성: 3\n유창성: 5\n\n종합 점수: 4"
+        )
+
+        ev = LLMJudgeEvaluator()
+        result = asyncio.run(ev.evaluate_async(
+            client=mock_client,
+            judge_model="claude-opus",
+            predictions=["요약"],
+            references=["참조"],
+            sources=["원문"],
+        ))
+        assert result["mean_score"] == 4.0
+
+    def test_handles_unparseable_score(self):
+        mock_client = MagicMock()
+        mock_client.generate = AsyncMock(return_value="I cannot evaluate this")
+
+        ev = LLMJudgeEvaluator()
+        result = asyncio.run(ev.evaluate_async(
+            client=mock_client,
+            judge_model="claude-opus",
+            predictions=["요약"],
+            references=["참조"],
+            sources=["원문"],
+        ))
+        assert result["scores"][0] is None
+        assert result["errors"] == 1
