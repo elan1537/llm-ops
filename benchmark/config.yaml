@@ -13,9 +13,9 @@ models:
     vision: false
 
 judge:
-  base_url: http://CHANGE_ME:8080/v1
-  model_id: claude-opus-4-20250514
-  api_key: ""
+  base_url: http://REDACTED_HOST:8317/v1
+  model_id: claude-opus-4-6
+  api_key: ${JUDGE_API_KEY}
 
 datasets:
   kmmlu:

@@ -1,6 +1,6 @@
 import random
 
-from datasets import load_dataset
+from datasets import load_dataset, get_dataset_config_names, concatenate_datasets
 
 from benchmark.datasets import register_dataset
 from benchmark.datasets.base import BaseDataset, Sample
@@ -25,8 +25,9 @@ class KMMLUDataset(BaseDataset):
         return "kmmlu"
 
     def load_samples(self, n: int, seed: int = 42) -> list[Sample]:
-        ds = load_dataset("HAERAE-HUB/KMMLU", "all")
-        data = ds["test"]
+        configs = get_dataset_config_names("HAERAE-HUB/KMMLU")
+        splits = [load_dataset("HAERAE-HUB/KMMLU", cfg, split="test") for cfg in configs]
+        data = concatenate_datasets(splits)
 
         random.seed(seed)
         total = len(data)
@@ -36,13 +37,13 @@ class KMMLUDataset(BaseDataset):
         for idx in indices:
             row = data[idx]
             prompt = PROMPT_TEMPLATE.format(
-                question=row["input"],
+                question=row["question"],
                 a=row["A"],
                 b=row["B"],
                 c=row["C"],
                 d=row["D"],
             )
-            ref_raw = row["output"]
+            ref_raw = row["answer"]
             reference = INDEX_TO_LETTER.get(ref_raw, str(ref_raw).strip().upper())
 
             samples.append(Sample(

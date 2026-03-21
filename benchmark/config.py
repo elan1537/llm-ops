@@ -1,6 +1,26 @@
+import os
+import re
+
 import yaml
 
 VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge"}
+
+_ENV_PATTERN = re.compile(r"\$\{(\w+)\}")
+
+
+def _resolve_env_vars(obj):
+    """Recursively resolve ${VAR} patterns in config values."""
+    if isinstance(obj, str):
+        def _replace(match):
+            var = match.group(1)
+            val = os.environ.get(var, "")
+            return val
+        return _ENV_PATTERN.sub(_replace, obj)
+    elif isinstance(obj, dict):
+        return {k: _resolve_env_vars(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_resolve_env_vars(item) for item in obj]
+    return obj
 
 
 class ConfigError(Exception):
@@ -14,6 +34,8 @@ def load_config(path: str) -> dict:
     for section in ("models", "settings"):
         if section not in config:
             raise ConfigError(f"Missing required section: {section}")
+
+    config = _resolve_env_vars(config)
 
     return config
 

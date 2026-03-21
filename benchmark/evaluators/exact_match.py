@@ -4,17 +4,38 @@ from benchmark.evaluators import register_evaluator
 
 
 def _normalize(text: str) -> str:
-    text = text.strip().upper()
+    text = text.strip()
+
+    # For multiple-choice: extract the final answer letter from verbose/thinking responses
+    # Search from the END of the text (most likely location of final answer)
     patterns = [
-        r"(?:answer|정답)[은는\s:]*([A-D])",
-        r"^([A-D])[\.\)\s]",
-        r"\b([A-D])\b",
+        # Explicit answer statements (Korean/English)
+        r"(?:answer|정답|답)[은는이\s:]*\**\s*([A-D])",
+        r"(?:answer|정답|답)\s*(?:is|는|은)\s*\**\s*([A-D])",
+        # "The correct answer is X" / "정답: X"
+        r"(?:correct\s+answer|최종\s*답|결론)[은는이\s:]*\**\s*([A-D])\b",
+        # Standalone letter at the very end (common pattern)
+        r"\b([A-D])\s*[\.\)]*\s*$",
+        # **A** or **B** markdown bold (common in thinking models)
+        r"\*\*([A-D])\*\*",
     ]
     for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+        matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
+        if matches:
+            return matches[-1].upper()  # Take the LAST match (final answer)
+
+    # Fallback: if text is very short and contains a single A-D letter
+    if len(text) < 20:
+        match = re.search(r"\b([A-D])\b", text, re.IGNORECASE)
         if match:
             return match.group(1).upper()
-    return text
+
+    # For numeric answers (GSM8K): extract last number
+    numbers = re.findall(r"[-+]?\d[\d,]*\.?\d*", text)
+    if numbers:
+        return numbers[-1].replace(",", "")
+
+    return text.strip().upper()
 
 
 @register_evaluator("exact_match")
