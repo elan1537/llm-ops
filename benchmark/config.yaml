@@ -7,11 +7,6 @@ models:
     base_url: http://localhost:8000/v1
     model_id: Qwen/Qwen3.5-35B-A3B-GPTQ-Int4
     vision: true
-  - name: nemotron-3-nano
-    base_url: http://localhost:8000/v1
-    model_id: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
-    vision: false
-
 judge:
   base_url: http://REDACTED_HOST:8317/v1
   model_id: claude-opus-4-6
