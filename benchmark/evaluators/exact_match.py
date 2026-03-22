@@ -4,6 +4,10 @@ from benchmark.evaluators import register_evaluator
 
 
 def _normalize(text: str) -> str:
+    # Strip </think> tag and take only the part after it
+    if "</think>" in text:
+        text = text.split("</think>")[-1]
+
     text = text.strip()
 
     # For multiple-choice: extract the final answer letter from verbose/thinking responses

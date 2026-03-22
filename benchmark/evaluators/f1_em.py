@@ -6,6 +6,14 @@ from benchmark.evaluators import register_evaluator
 
 def _extract_answer(text: str) -> str:
     """Extract the final answer from verbose/thinking model output."""
+    # Strip </think> tag and take only the part after it
+    if "</think>" in text:
+        text = text.split("</think>")[-1]
+
+    text = text.strip()
+    if not text:
+        return ""
+
     # Try to find explicit answer markers
     patterns = [
         r"(?:답|answer|답변)[은는이\s:]+(.+?)(?:\n|$)",
@@ -16,14 +24,11 @@ def _extract_answer(text: str) -> str:
         if matches:
             return matches[-1].strip()
 
-    # If text has clear sections, take the last non-empty line
-    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
-    if len(lines) > 3:
-        # Skip lines that look like thinking/reasoning
-        for line in reversed(lines):
-            if not any(line.lower().startswith(p) for p in
-                       ["thinking", "process", "step", "1.", "2.", "3.", "*", "-", "#"]):
-                return line
+    # Take the last non-empty line (after </think>, this is usually the answer)
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if lines:
+        return lines[-1]
+
     return text
 
 
