@@ -76,6 +76,7 @@ from benchmark.datasets.korquad import KorQuADDataset
 from benchmark.datasets.gsm8k import GSM8KDataset
 from benchmark.datasets.summarization import XLSumKoDataset
 from benchmark.datasets.docvqa import DocVQADataset
+from benchmark.datasets.ocrbench import OCRBenchDataset
 from PIL import Image
 import io
 import base64
@@ -240,3 +241,44 @@ class TestDocVQA:
             ds = DocVQADataset({"samples": 1})
             samples = ds.load_samples(n=1, seed=42)
             assert samples[0].reference in ("Annual Report", "2024-01-01")
+
+
+class TestOCRBench:
+    @pytest.fixture
+    def mock_hf_dataset(self):
+        img = Image.new("RGB", (100, 100), color="white")
+        rows = [
+            {"image": img, "question": "what is written in the image?",
+             "answer": ["HELLO"], "question_type": "Regular Text Recognition", "dataset": "IIIT5K"},
+            {"image": img, "question": "what is the total amount?",
+             "answer": ["$100"], "question_type": "Key Information Extraction", "dataset": "SROIE"},
+        ]
+        mock_ds = MagicMock()
+        mock_ds.__len__ = lambda self: len(rows)
+        mock_ds.__getitem__ = lambda self, idx: rows[idx]
+        return mock_ds
+
+    def test_load_samples(self, mock_hf_dataset):
+        with patch("benchmark.datasets.ocrbench.load_dataset", return_value=mock_hf_dataset):
+            ds = OCRBenchDataset({"samples": 2})
+            samples = ds.load_samples(n=2, seed=42)
+            assert len(samples) == 2
+
+    def test_prompt_is_vision_format(self, mock_hf_dataset):
+        with patch("benchmark.datasets.ocrbench.load_dataset", return_value=mock_hf_dataset):
+            ds = OCRBenchDataset({"samples": 1})
+            samples = ds.load_samples(n=1, seed=42)
+            assert isinstance(samples[0].prompt, list)
+            types = [item["type"] for item in samples[0].prompt]
+            assert "text" in types
+            assert "image_url" in types
+
+    def test_metadata_has_question_type(self, mock_hf_dataset):
+        with patch("benchmark.datasets.ocrbench.load_dataset", return_value=mock_hf_dataset):
+            ds = OCRBenchDataset({"samples": 1})
+            samples = ds.load_samples(n=1, seed=42)
+            assert "question_type" in samples[0].metadata
+
+    def test_requires_vision_true(self):
+        ds = OCRBenchDataset({})
+        assert ds.requires_vision is True

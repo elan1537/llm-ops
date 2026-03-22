@@ -21,6 +21,7 @@ import benchmark.datasets.korquad
 import benchmark.datasets.gsm8k
 import benchmark.datasets.summarization
 import benchmark.datasets.docvqa
+import benchmark.datasets.ocrbench
 import benchmark.evaluators.exact_match
 import benchmark.evaluators.f1_em
 import benchmark.evaluators.anls

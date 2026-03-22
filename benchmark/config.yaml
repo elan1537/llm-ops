@@ -40,6 +40,12 @@ datasets:
     evaluator: anls
     vision_only: true
     anls_judge_threshold: 0.5
+  ocrbench:
+    enabled: true
+    samples: 100
+    evaluator: anls
+    vision_only: true
+    anls_judge_threshold: 0.5
 
 settings:
   temperatures: [0.0, 0.5]
