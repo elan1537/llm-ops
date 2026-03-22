@@ -3,7 +3,7 @@ import re
 
 import yaml
 
-VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge"}
+VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge", "cer"}
 
 _ENV_PATTERN = re.compile(r"\$\{(\w+)\}")
 

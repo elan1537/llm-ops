@@ -22,10 +22,12 @@ import benchmark.datasets.gsm8k
 import benchmark.datasets.summarization
 import benchmark.datasets.docvqa
 import benchmark.datasets.ocrbench
+import benchmark.datasets.pdf_ocr
 import benchmark.evaluators.exact_match
 import benchmark.evaluators.f1_em
 import benchmark.evaluators.anls
 import benchmark.evaluators.llm_judge
+import benchmark.evaluators.cer
 
 
 def _fmt_duration(seconds: float) -> str:
@@ -345,7 +347,7 @@ class BenchmarkRunner:
         }
 
     def _find_score_key(self, result: dict) -> str:
-        for key in ("score", "f1", "anls", "mean_score"):
+        for key in ("score", "f1", "anls", "cer", "mean_score"):
             if key in result:
                 return key
         return "score"
@@ -370,6 +372,10 @@ class BenchmarkRunner:
         elif score_key == "anls":
             anls = result.get("anls", 0)
             return f"{anls:.1%} ANLS{error_str}"
+        elif score_key == "cer":
+            cer = result.get("cer", 0)
+            acc = result.get("accuracy", 0)
+            return f"CER={cer:.1%} (accuracy={acc:.1%}{error_str})"
         else:
             score = result.get("score", 0)
             correct = result.get("correct", 0)

@@ -46,6 +46,12 @@ datasets:
     evaluator: anls
     vision_only: true
     anls_judge_threshold: 0.5
+  pdf_ocr:
+    enabled: true
+    samples: 5
+    evaluator: cer
+    vision_only: true
+    mode: synthetic
 
 settings:
   temperatures: [0.0, 0.5]
