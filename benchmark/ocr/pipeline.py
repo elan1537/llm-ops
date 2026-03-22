@@ -29,7 +29,7 @@ DEEPSEEK_OCR_URL = os.environ.get("DEEPSEEK_OCR_URL", "http://localhost:8003")
 
 DEEPSEEK_GROUNDING_PROMPT = "<image>\n<|grounding|>Convert the document to markdown."
 
-FIGURE_DESCRIPTION_PROMPT = "/no_think\nDescribe this figure in exactly one sentence."
+FIGURE_DESCRIPTION_PROMPT = "Describe this figure in exactly one sentence."
 
 
 @dataclass
@@ -184,6 +184,7 @@ async def _describe_figures(
             messages=messages,
             temperature=0.0,
             max_tokens=512,
+            enable_thinking=False,
         ))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)

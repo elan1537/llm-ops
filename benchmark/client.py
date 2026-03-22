@@ -22,18 +22,24 @@ class BenchmarkClient:
         self.max_retries = 3
 
     async def generate(
-        self, model: str, messages: list, temperature: float, max_tokens: int
+        self, model: str, messages: list, temperature: float, max_tokens: int,
+        enable_thinking: bool = True,
     ) -> GenerateResult:
         async with self.semaphore:
             last_error = None
             for attempt in range(self.max_retries):
                 try:
-                    response = await self.client.chat.completions.create(
+                    kwargs = dict(
                         model=model,
                         messages=messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
                     )
+                    if not enable_thinking:
+                        kwargs["extra_body"] = {
+                            "chat_template_kwargs": {"enable_thinking": False}
+                        }
+                    response = await self.client.chat.completions.create(**kwargs)
                     usage = response.usage
                     return GenerateResult(
                         content=response.choices[0].message.content or "",
