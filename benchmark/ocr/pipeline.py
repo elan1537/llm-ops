@@ -29,9 +29,7 @@ DEEPSEEK_OCR_URL = os.environ.get("DEEPSEEK_OCR_URL", "http://localhost:8003")
 
 DEEPSEEK_GROUNDING_PROMPT = "<image>\n<|grounding|>Convert the document to markdown."
 
-FIGURE_DESCRIPTION_PROMPT = """Describe this figure from a research paper concisely.
-Include: what type of visualization it is, key data points or comparisons shown, and the main takeaway.
-Answer in the same language as any text in the figure. Keep it under 3 sentences."""
+FIGURE_DESCRIPTION_PROMPT = "/no_think\nDescribe this figure in exactly one sentence."
 
 
 @dataclass
@@ -192,12 +190,40 @@ async def _describe_figures(
 
     for fig, result in zip(figures, results):
         if isinstance(result, Exception):
-            fig.description = f"(Figure description failed: {result})"
+            fig.description = "(Figure description unavailable)"
         else:
             desc = result.content
             if "</think>" in desc:
                 desc = desc.split("</think>")[-1]
-            fig.description = desc.strip()
+            fig.description = _clean_description(desc)
+
+
+def _clean_description(text: str) -> str:
+    """Extract a clean one-sentence description from possibly verbose model output."""
+    # Remove markdown bold/italic markers and list bullets
+    text = re.sub(r"\*+\s*", "", text)
+    # Remove "Draft N:" patterns
+    text = re.sub(r"Draft\s*\d+[^:]*:\s*", "", text, flags=re.IGNORECASE)
+    # Remove numbered list prefixes
+    text = re.sub(r"^\d+\.\s*", "", text, flags=re.MULTILINE)
+
+    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+
+    # Find lines that look like actual descriptions (contain subject+verb patterns)
+    desc_lines = [l for l in lines if len(l) > 30
+                  and not l.lower().startswith(("the user", "let me", "i need", "identify", "analyze", "draft"))]
+
+    if desc_lines:
+        # Take the last good description (model refines iteratively)
+        chosen = desc_lines[-1]
+    elif lines:
+        chosen = lines[-1]
+    else:
+        return ""
+
+    # Take only the first sentence if multiple
+    chosen = re.split(r'(?<=[.!?])\s+', chosen)[0]
+    return chosen.strip('"').strip("'").strip()
 
     return figures
 
