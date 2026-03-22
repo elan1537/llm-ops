@@ -63,6 +63,7 @@ class BenchmarkRunner:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=self.settings["max_tokens"],
+                enable_thinking=self._enable_thinking,
             ))
 
         # Use gather to preserve order (as_completed does NOT preserve order)
@@ -144,8 +145,10 @@ class BenchmarkRunner:
         self, dataset_filter: list[str] | None = None,
         model_filter: list[str] | None = None,
         sample_override: int | None = None,
+        enable_thinking: bool = True,
     ):
         results = {}
+        self._enable_thinking = enable_thinking
         timestamp = datetime.now().isoformat(timespec="seconds")
         temperatures = self.settings["temperatures"]
         stochastic_runs = self.settings["stochastic_runs"]
@@ -157,10 +160,12 @@ class BenchmarkRunner:
         if model_filter:
             model_names = [n for n in model_names if n in model_filter]
 
+        thinking_str = "ON" if enable_thinking else "OFF"
         print("=" * 60)
         print("  LLM Benchmark Runner")
         print("=" * 60)
         print(f"  Config:       {os.path.abspath(self._config_path)}")
+        print(f"  Thinking:     {thinking_str}")
         print(f"  Models:       {', '.join(model_names)}")
         for m in self.config["models"]:
             if model_filter and m["name"] not in model_filter:
@@ -330,7 +335,8 @@ class BenchmarkRunner:
             "config_snapshot": self.config,
             "results": results,
         }
-        filename = f"{timestamp.replace(':', '-')}_benchmark.json"
+        think_tag = "think" if enable_thinking else "nothink"
+        filename = f"{timestamp.replace(':', '-')}_{think_tag}_benchmark.json"
         filepath = os.path.join(self.settings["results_dir"], filename)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(output, f, ensure_ascii=False, indent=2)
@@ -407,6 +413,8 @@ def main():
     parser.add_argument("--dataset", nargs="+", help="Run only these datasets")
     parser.add_argument("--model", nargs="+", help="Run only these models")
     parser.add_argument("--samples", type=int, help="Override sample count")
+    parser.add_argument("--no-thinking", action="store_true",
+                        help="Disable model thinking mode (Qwen3.5)")
     args = parser.parse_args()
 
     runner = BenchmarkRunner(args.config)
@@ -414,6 +422,7 @@ def main():
         dataset_filter=args.dataset,
         model_filter=args.model,
         sample_override=args.samples,
+        enable_thinking=not args.no_thinking,
     ))
 
 
