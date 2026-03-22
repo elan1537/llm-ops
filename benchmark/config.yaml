@@ -52,6 +52,11 @@ datasets:
     evaluator: cer
     vision_only: true
     mode: synthetic
+  figure_caption:
+    enabled: true
+    samples: 30
+    evaluator: llm_judge
+    vision_only: true
 
 settings:
   temperatures: [0.0, 0.5]

@@ -62,19 +62,20 @@ class LLMJudgeEvaluator:
                 source=src, reference=ref, prediction=pred,
             )
             try:
-                response = await client.generate(
+                result = await client.generate(
                     model=judge_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
                     max_tokens=512,
                 )
-                score = _parse_score(response)
+                response_text = result.content if hasattr(result, 'content') else str(result)
+                score = _parse_score(response_text)
                 if score is None:
                     errors += 1
                 scores.append(score)
                 details.append({
                     "prediction": pred, "reference": ref,
-                    "judge_response": response, "score": score,
+                    "judge_response": response_text, "score": score,
                 })
             except Exception as e:
                 scores.append(None)
