@@ -103,12 +103,14 @@ class BenchmarkRunner:
 
         if evaluator_name == "llm_judge":
             sources = [s.metadata.get("source", "") for s in samples]
+            prompt_type = ds_config.get("judge_prompt", "default")
             return await evaluator.evaluate_async(
                 client=judge_client,
                 judge_model=self.config["judge"]["model_id"],
                 predictions=predictions,
                 references=references,
                 sources=sources,
+                prompt_type=prompt_type,
             )
         elif evaluator_name == "anls":
             threshold = ds_config.get("anls_judge_threshold", 0.5)

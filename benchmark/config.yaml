@@ -52,6 +52,7 @@ datasets:
     samples: 30
     evaluator: llm_judge
     vision_only: true
+    judge_prompt: figure_caption
 
 settings:
   temperatures: [0.0, 0.5]
