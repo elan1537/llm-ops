@@ -161,7 +161,7 @@ class TestIntegration:
              patch("benchmark.run.BenchmarkClient") as MockClient:
 
             mock_instance = MagicMock()
-            mock_instance.generate = AsyncMock(return_value="A")
+            mock_instance.generate = AsyncMock(return_value=_mock_generate_result("A"))
             MockClient.return_value = mock_instance
 
             runner = BenchmarkRunner(config_path)

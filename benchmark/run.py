@@ -51,7 +51,7 @@ class BenchmarkRunner:
         self, client: BenchmarkClient, model_name: str, samples: list[Sample],
         temperature: float,
     ) -> tuple[list[str], dict]:
-        """Returns (predictions, token_stats)."""
+        """Returns (predictions, token_stats). Order matches samples."""
         tasks = []
         for sample in samples:
             messages = [{"role": "user", "content": sample.prompt}]
@@ -62,17 +62,22 @@ class BenchmarkRunner:
                 max_tokens=self.settings["max_tokens"],
             ))
 
+        # Use gather to preserve order (as_completed does NOT preserve order)
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
         predictions = []
         total_prompt_tokens = 0
         total_completion_tokens = 0
-        for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc=f"  {model_name}", leave=False):
-            try:
-                result: GenerateResult = await coro
+        errors = 0
+        for r in tqdm(raw_results, total=len(raw_results), desc=f"  {model_name}", leave=False):
+            if isinstance(r, Exception):
+                predictions.append(f"ERROR: {r}")
+                errors += 1
+            else:
+                result: GenerateResult = r
                 predictions.append(result.content)
                 total_prompt_tokens += result.prompt_tokens
                 total_completion_tokens += result.completion_tokens
-            except Exception as e:
-                predictions.append(f"ERROR: {e}")
 
         token_stats = {
             "prompt_tokens": total_prompt_tokens,

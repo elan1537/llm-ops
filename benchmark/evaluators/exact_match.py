@@ -30,7 +30,19 @@ def _normalize(text: str) -> str:
         if match:
             return match.group(1).upper()
 
-    # For numeric answers (GSM8K): extract last number
+    # For numeric answers (GSM8K): extract the last standalone number from the text
+    # Models typically output reasoning then the final number at the end
+    # Look for explicit final answer patterns first
+    final_num_patterns = [
+        r"(?:답|answer|결과|결론|따라서|그러므로)[은는이\s:]*\**\s*([-+]?\d[\d,]*\.?\d*)",
+        r"(?:=\s*)([-+]?\d[\d,]*\.?\d*)\s*$",
+    ]
+    for pattern in final_num_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
+        if matches:
+            return matches[-1].replace(",", "")
+
+    # Fallback: last number in the text
     numbers = re.findall(r"[-+]?\d[\d,]*\.?\d*", text)
     if numbers:
         return numbers[-1].replace(",", "")

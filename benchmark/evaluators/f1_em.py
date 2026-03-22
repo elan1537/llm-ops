@@ -4,6 +4,29 @@ from collections import Counter
 from benchmark.evaluators import register_evaluator
 
 
+def _extract_answer(text: str) -> str:
+    """Extract the final answer from verbose/thinking model output."""
+    # Try to find explicit answer markers
+    patterns = [
+        r"(?:답|answer|답변)[은는이\s:]+(.+?)(?:\n|$)",
+        r"(?:최종\s*답|final\s*answer)[은는이\s:]+(.+?)(?:\n|$)",
+    ]
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        if matches:
+            return matches[-1].strip()
+
+    # If text has clear sections, take the last non-empty line
+    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+    if len(lines) > 3:
+        # Skip lines that look like thinking/reasoning
+        for line in reversed(lines):
+            if not any(line.lower().startswith(p) for p in
+                       ["thinking", "process", "step", "1.", "2.", "3.", "*", "-", "#"]):
+                return line
+    return text
+
+
 def _tokenize(text: str) -> list[str]:
     text = text.strip().lower()
     text = re.sub(r"[^\w\s]", " ", text)
@@ -15,6 +38,7 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _compute_f1(prediction: str, reference: str) -> float:
+    prediction = _extract_answer(prediction)
     pred_tokens = _tokenize(prediction)
     ref_tokens = _tokenize(reference)
     if not pred_tokens or not ref_tokens:
@@ -31,6 +55,7 @@ def _compute_f1(prediction: str, reference: str) -> float:
 
 
 def _compute_em(prediction: str, reference: str) -> float:
+    prediction = _extract_answer(prediction)
     return float(_tokenize(prediction) == _tokenize(reference))
 
 
