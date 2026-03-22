@@ -16,12 +16,21 @@ from benchmark.datasets import register_dataset
 from benchmark.datasets.base import BaseDataset, Sample
 
 
+MAX_IMAGE_SIZE = 1024
+
+
 def _download_image(url: str) -> Image.Image | None:
-    """Download image from URL, return PIL Image or None on failure."""
+    """Download image from URL, resize if too large, return PIL Image or None."""
     try:
         response = httpx.get(url, timeout=30, follow_redirects=True)
         response.raise_for_status()
-        return Image.open(io.BytesIO(response.content)).convert("RGB")
+        img = Image.open(io.BytesIO(response.content)).convert("RGB")
+        # Resize if either dimension exceeds MAX_IMAGE_SIZE
+        w, h = img.size
+        if max(w, h) > MAX_IMAGE_SIZE:
+            scale = MAX_IMAGE_SIZE / max(w, h)
+            img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        return img
     except Exception:
         return None
 
