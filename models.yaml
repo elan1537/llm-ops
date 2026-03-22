@@ -5,11 +5,29 @@ global:
   api_key: ""
 
 models:
-  qwen3.5-122b:
+  qwen3.5-27b:
     enabled: true
+    model_id: Qwen/Qwen3.5-27B
+    model_path: Qwen3.5-27B
+    port: 8001
+    gpus: [0]
+    tensor_parallel: 1
+    dtype: bfloat16
+    quantization: null
+    max_model_len: 32768
+    gpu_memory_utilization: 0.92
+    max_num_seqs: 64
+    max_num_batched_tokens: 32768
+    swap_space: 4
+    extra_args:
+      - "--trust-remote-code"
+      - '--limit-mm-per-prompt={"image":5}'
+
+  qwen3.5-122b:
+    enabled: false
     model_id: Qwen/Qwen3.5-122B-A10B-GPTQ-Int4
     model_path: Qwen3.5-122B-A10B-GPTQ-Int4
-    port: 8001
+    port: 8002
     gpus: [0, 1]
     tensor_parallel: 2
     dtype: float16
@@ -23,28 +41,11 @@ models:
       - "--trust-remote-code"
       - '--limit-mm-per-prompt={"image":5}'
 
-  nemotron-3-nano:
-    enabled: false
-    model_id: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
-    model_path: NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
-    port: 8003
-    gpus: [3]
-    tensor_parallel: 1
-    dtype: bfloat16
-    quantization: null
-    max_model_len: 32768
-    gpu_memory_utilization: 0.92
-    max_num_seqs: 128
-    max_num_batched_tokens: 32768
-    swap_space: 4
-    extra_args:
-      - "--trust-remote-code"
-
   qwen3.5-35b:
-    enabled: true
+    enabled: false
     model_id: Qwen/Qwen3.5-35B-A3B-GPTQ-Int4
     model_path: Qwen3.5-35B-A3B-GPTQ-Int4
-    port: 8002
+    port: 8003
     gpus: [2]
     tensor_parallel: 1
     dtype: float16
