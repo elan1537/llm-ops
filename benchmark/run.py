@@ -310,7 +310,11 @@ class BenchmarkRunner:
                             )
                             run_results.append(eval_result)
                             sk = self._find_score_key(eval_result)
-                            print(f"    Score: {eval_result[sk]:.1%}")
+                            sv = eval_result[sk]
+                            if sk == "mean_score":
+                                print(f"    Score: {sv:.1f}/5.0")
+                            else:
+                                print(f"    Score: {sv:.1%}")
 
                         agg = self._aggregate_runs(run_results)
                         results[ds_name][model_name][f"temperature_{temp}"] = agg
@@ -371,6 +375,9 @@ class BenchmarkRunner:
         if "std" in result:
             score = result["mean_score"]
             std = result["std"]
+            # Check if this was a judge score (1-5 scale) or a percentage
+            if "runs" in result and any(isinstance(r, (int, float)) and r <= 5 for r in result["runs"]):
+                return f"{score:.1f}/5.0 (±{std:.1f}{error_str})"
             return f"{score:.1%} (±{std:.1%}{error_str})"
         elif score_key == "f1":
             f1 = result.get("f1", 0)
