@@ -24,7 +24,7 @@ models:
       - '--limit-mm-per-prompt={"image":5}'
 
   nemotron-3-nano:
-    enabled: true
+    enabled: false
     model_id: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
     model_path: NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
     port: 8003
