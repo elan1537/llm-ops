@@ -51,23 +51,44 @@ def compute_cer(prediction: str, reference: str) -> float:
 
 @register_evaluator("cer")
 class CEREvaluator:
-    def evaluate(self, predictions: list[str], references: list[str]) -> dict:
+    def evaluate(self, predictions: list[str], references: list[str],
+                 metadata: list[dict] | None = None) -> dict:
         scores = []
         details = []
-        for pred, ref in zip(predictions, references):
+        lang_scores: dict[str, list[float]] = {}
+
+        for i, (pred, ref) in enumerate(zip(predictions, references)):
             cer = compute_cer(pred, ref)
             scores.append(cer)
+
+            lang = "unknown"
+            if metadata and i < len(metadata):
+                lang = metadata[i].get("lang", "unknown")
+
+            lang_scores.setdefault(lang, []).append(cer)
             details.append({
                 "prediction_len": len(pred),
                 "reference_len": len(ref),
                 "cer": cer,
+                "lang": lang,
             })
 
         n = len(references)
         mean_cer = sum(scores) / n if n else 0.0
-        return {
+
+        result = {
             "cer": mean_cer,
             "accuracy": 1.0 - min(mean_cer, 1.0),
             "total": n,
             "details": details,
         }
+
+        # Per-language breakdown
+        if len(lang_scores) > 1 or "unknown" not in lang_scores:
+            per_lang = {}
+            for lang, lscores in sorted(lang_scores.items()):
+                lmean = sum(lscores) / len(lscores)
+                per_lang[lang] = {"cer": lmean, "accuracy": 1.0 - min(lmean, 1.0), "count": len(lscores)}
+            result["per_lang"] = per_lang
+
+        return result

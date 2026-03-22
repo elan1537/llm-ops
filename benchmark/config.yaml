@@ -48,7 +48,7 @@ datasets:
     anls_judge_threshold: 0.5
   pdf_ocr:
     enabled: true
-    samples: 5
+    samples: 6
     evaluator: cer
     vision_only: true
     mode: synthetic

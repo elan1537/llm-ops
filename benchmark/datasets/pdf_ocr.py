@@ -19,26 +19,14 @@ import tempfile
 from benchmark.datasets import register_dataset
 from benchmark.datasets.base import BaseDataset, Sample
 
-# Sample texts for synthetic PDF generation (Korean + English mixed)
-SYNTHETIC_TEXTS = [
-    {
-        "title": "회의록",
-        "content": (
-            "제목: 2024년 1분기 경영 전략 회의\n"
-            "일시: 2024년 3월 15일 오후 2시\n"
-            "장소: 본사 대회의실\n\n"
-            "1. 매출 현황 보고\n"
-            "   - 1분기 매출: 152억원 (전년 대비 12% 증가)\n"
-            "   - 영업이익: 23억원 (전년 대비 8% 증가)\n"
-            "   - 해외 매출 비중: 35%\n\n"
-            "2. 신규 사업 계획\n"
-            "   - AI 기반 문서 자동화 서비스 런칭 예정 (6월)\n"
-            "   - 동남아 시장 진출 검토 중\n"
-            "   - R&D 투자 확대: 연매출의 15% 목표"
-        ),
-    },
+KOREAN_FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+
+# --- Synthetic texts, tagged with language ---
+
+SYNTHETIC_TEXTS_EN = [
     {
         "title": "Technical Specification",
+        "lang": "en",
         "content": (
             "Product: LLM Inference Server v2.0\n"
             "Date: 2024-03-20\n\n"
@@ -55,22 +43,8 @@ SYNTHETIC_TEXTS = [
         ),
     },
     {
-        "title": "계약서",
-        "content": (
-            "소프트웨어 라이선스 계약서\n\n"
-            "제1조 (목적)\n"
-            "본 계약은 갑(주식회사 테크솔루션)이 을(주식회사 데이터랩)에게\n"
-            "소프트웨어 라이선스를 부여하는 조건을 정한다.\n\n"
-            "제2조 (계약 기간)\n"
-            "본 계약의 유효 기간은 2024년 4월 1일부터 2025년 3월 31일까지로 한다.\n\n"
-            "제3조 (라이선스 비용)\n"
-            "월 라이선스 비용: 5,000,000원 (부가세 별도)\n"
-            "연간 총액: 60,000,000원\n"
-            "지급 방법: 매월 말일 익월 10일까지 계좌 이체"
-        ),
-    },
-    {
         "title": "Research Abstract",
+        "lang": "en",
         "content": (
             "Title: Efficient Large Language Model Serving with Quantization\n\n"
             "Abstract:\n"
@@ -85,7 +59,66 @@ SYNTHETIC_TEXTS = [
         ),
     },
     {
-        "title": "데이터 분석 보고서",
+        "title": "Meeting Minutes",
+        "lang": "en",
+        "content": (
+            "Project: Cloud Migration Phase 2\n"
+            "Date: March 18, 2024\n"
+            "Attendees: J. Kim, S. Park, M. Lee, D. Choi\n\n"
+            "Agenda:\n"
+            "1. Database migration status\n"
+            "   - PostgreSQL 15 upgrade completed\n"
+            "   - Data validation: 99.98% integrity confirmed\n"
+            "   - Remaining: 3 legacy tables need schema update\n\n"
+            "2. API Gateway deployment\n"
+            "   - Kong Gateway v3.5 tested in staging\n"
+            "   - Rate limiting: 1000 req/min per client\n"
+            "   - SSL termination: avg 0.5ms overhead\n\n"
+            "3. Action Items:\n"
+            "   - S. Park: Complete schema migration by March 25\n"
+            "   - M. Lee: Load test API Gateway with 500 concurrent users\n"
+            "   - D. Choi: Update monitoring dashboards"
+        ),
+    },
+]
+
+SYNTHETIC_TEXTS_KO = [
+    {
+        "title": "경영 전략 회의록",
+        "lang": "ko",
+        "content": (
+            "제목: 2024년 1분기 경영 전략 회의\n"
+            "일시: 2024년 3월 15일 오후 2시\n"
+            "장소: 본사 대회의실\n\n"
+            "1. 매출 현황 보고\n"
+            "   - 1분기 매출: 152억원 (전년 대비 12% 증가)\n"
+            "   - 영업이익: 23억원 (전년 대비 8% 증가)\n"
+            "   - 해외 매출 비중: 35%\n\n"
+            "2. 신규 사업 계획\n"
+            "   - AI 기반 문서 자동화 서비스 런칭 예정 (6월)\n"
+            "   - 동남아 시장 진출 검토 중\n"
+            "   - R&D 투자 확대: 연매출의 15% 목표"
+        ),
+    },
+    {
+        "title": "소프트웨어 라이선스 계약서",
+        "lang": "ko",
+        "content": (
+            "소프트웨어 라이선스 계약서\n\n"
+            "제1조 (목적)\n"
+            "본 계약은 갑(주식회사 테크솔루션)이 을(주식회사 데이터랩)에게\n"
+            "소프트웨어 라이선스를 부여하는 조건을 정한다.\n\n"
+            "제2조 (계약 기간)\n"
+            "본 계약의 유효 기간은 2024년 4월 1일부터 2025년 3월 31일까지로 한다.\n\n"
+            "제3조 (라이선스 비용)\n"
+            "월 라이선스 비용: 5,000,000원 (부가세 별도)\n"
+            "연간 총액: 60,000,000원\n"
+            "지급 방법: 매월 말일 익월 10일까지 계좌 이체"
+        ),
+    },
+    {
+        "title": "서버 모니터링 리포트",
+        "lang": "ko",
         "content": (
             "월간 서버 모니터링 리포트 (2024년 3월)\n\n"
             "1. 서버 가용성\n"
@@ -104,21 +137,30 @@ SYNTHETIC_TEXTS = [
     },
 ]
 
+ALL_SYNTHETIC_TEXTS = SYNTHETIC_TEXTS_EN + SYNTHETIC_TEXTS_KO
 
-def _create_synthetic_pdf(text: str, title: str) -> str:
-    """Create a simple PDF from text using PyMuPDF. Returns temp file path."""
+
+def _create_synthetic_pdf(text: str, title: str, lang: str = "en") -> str:
+    """Create a PDF from text using PyMuPDF with proper font. Returns temp file path."""
     import fitz
 
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)  # A4
 
+    if lang == "ko" and os.path.exists(KOREAN_FONT_PATH):
+        font = fitz.Font(fontfile=KOREAN_FONT_PATH)
+        fontname = "NotoKR"
+        page.insert_font(fontname=fontname, fontbuffer=font.buffer)
+    else:
+        fontname = "helv"
+
     # Title
     title_rect = fitz.Rect(50, 50, 545, 90)
-    page.insert_textbox(title_rect, title, fontsize=16, fontname="helv")
+    page.insert_textbox(title_rect, title, fontsize=16, fontname=fontname)
 
     # Body text
     body_rect = fitz.Rect(50, 100, 545, 792)
-    page.insert_textbox(body_rect, text, fontsize=10, fontname="helv")
+    page.insert_textbox(body_rect, text, fontsize=10, fontname=fontname)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
     doc.save(tmp.name)
@@ -147,13 +189,13 @@ class PDFOCRDataset(BaseDataset):
 
     def _load_synthetic(self, n: int, seed: int = 42) -> list[Sample]:
         random.seed(seed)
-        selected = random.choices(SYNTHETIC_TEXTS, k=min(n, len(SYNTHETIC_TEXTS)))
+        selected = random.sample(ALL_SYNTHETIC_TEXTS, k=min(n, len(ALL_SYNTHETIC_TEXTS)))
 
         samples = []
         for i, doc in enumerate(selected):
-            pdf_path = _create_synthetic_pdf(doc["content"], doc["title"])
+            lang = doc.get("lang", "en")
+            pdf_path = _create_synthetic_pdf(doc["content"], doc["title"], lang=lang)
 
-            # Convert to page images for the vision model
             from benchmark.ocr.pipeline import pdf_to_images, image_to_base64
             images = pdf_to_images(pdf_path, dpi=144)
 
@@ -167,18 +209,18 @@ class PDFOCRDataset(BaseDataset):
                     {"type": "image_url", "image_url": {"url": b64_uri}},
                 ]
                 samples.append(Sample(
-                    id=f"pdf_ocr_synth_{i}_p{page_num}",
+                    id=f"pdf_ocr_{lang}_{i}_p{page_num}",
                     prompt=prompt,
                     reference=doc["content"],
                     metadata={
                         "title": doc["title"],
+                        "lang": lang,
                         "page_num": page_num,
                         "pdf_path": pdf_path,
                         "mode": "synthetic",
                     },
                 ))
 
-            # Clean up temp PDF
             os.unlink(pdf_path)
 
         return samples[:n]

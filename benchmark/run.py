@@ -134,6 +134,9 @@ class BenchmarkRunner:
                         "mean_score": judge_result["mean_score"],
                     }
             return result
+        elif evaluator_name == "cer":
+            sample_metadata = [s.metadata for s in samples]
+            return evaluator.evaluate(predictions, references, metadata=sample_metadata)
         else:
             return evaluator.evaluate(predictions, references)
 
@@ -375,7 +378,12 @@ class BenchmarkRunner:
         elif score_key == "cer":
             cer = result.get("cer", 0)
             acc = result.get("accuracy", 0)
-            return f"CER={cer:.1%} (accuracy={acc:.1%}{error_str})"
+            parts = f"CER={cer:.1%} (accuracy={acc:.1%}{error_str})"
+            per_lang = result.get("per_lang", {})
+            if per_lang:
+                lang_strs = [f"{l}:{v['accuracy']:.0%}" for l, v in per_lang.items()]
+                parts += f" [{', '.join(lang_strs)}]"
+            return parts
         else:
             score = result.get("score", 0)
             correct = result.get("correct", 0)
