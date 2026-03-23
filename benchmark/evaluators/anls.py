@@ -1,4 +1,5 @@
 from benchmark.evaluators import register_evaluator
+from benchmark.evaluators.common import strip_thinking
 
 
 def _edit_distance(s1: str, s2: str) -> int:
@@ -22,7 +23,7 @@ def _edit_distance(s1: str, s2: str) -> int:
 
 
 def _anls_score(prediction: str, reference: str, threshold: float = 0.5) -> float:
-    pred = prediction.strip().lower()
+    pred = strip_thinking(prediction).lower()
     ref = reference.strip().lower()
     if not ref and not pred:
         return 1.0

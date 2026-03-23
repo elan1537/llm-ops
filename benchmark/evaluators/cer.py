@@ -7,13 +7,12 @@ Lower is better (0.0 = perfect, 1.0+ = very bad).
 import re
 
 from benchmark.evaluators import register_evaluator
+from benchmark.evaluators.common import strip_thinking
 
 
 def _normalize_for_cer(text: str) -> str:
     """Normalize text for CER comparison: strip thinking, markdown, normalize whitespace."""
-    # Strip </think> reasoning if present
-    if "</think>" in text:
-        text = text.split("</think>")[-1]
+    text = strip_thinking(text)
     # Remove markdown formatting
     text = re.sub(r"[#*_`~\[\]()>|]", "", text)
     # Collapse whitespace
