@@ -53,11 +53,23 @@ datasets:
     evaluator: llm_judge
     vision_only: true
     judge_prompt: figure_caption
+  longbench:
+    enabled: true
+    samples: 10
+    evaluator: exact_match
+    length: short
+    max_context_chars: 200000
+  ruler:
+    enabled: true
+    samples: 12
+    evaluator: f1_em
+    context_lengths: [4000, 16000, 64000, 128000]
+    positions: [0.1, 0.5, 0.9]
 
 settings:
   temperatures: [0.0, 0.5]
   stochastic_runs: 3
   concurrent_requests: 4
-  timeout: 120
-  max_tokens: 2048
+  timeout: 300
+  max_tokens: 4096
   results_dir: benchmark/results

@@ -23,6 +23,8 @@ import benchmark.datasets.summarization
 import benchmark.datasets.docvqa
 import benchmark.datasets.ocrbench
 import benchmark.datasets.mmlu
+import benchmark.datasets.longbench
+import benchmark.datasets.ruler
 import benchmark.datasets.pdf_ocr
 import benchmark.datasets.figure_caption
 import benchmark.evaluators.exact_match
