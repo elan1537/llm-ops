@@ -101,6 +101,70 @@ class TestANLS:
         assert result["anls"] == 0.0
 
 
+class TestExactMatchRobust:
+    def test_answer_tag_format(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(predictions=["Answer: B"], references=["B"])
+        assert result["score"] == 1.0
+
+    def test_answer_tag_with_number(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(predictions=["Answer: 42"], references=["42"])
+        assert result["score"] == 1.0
+
+    def test_verbose_with_answer_tag(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(
+            predictions=["Let me think...\n\nAnswer: C"],
+            references=["C"],
+        )
+        assert result["score"] == 1.0
+
+    def test_thinking_tags_stripped(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(
+            predictions=["<think>reasoning about A and B</think>B"],
+            references=["B"],
+        )
+        assert result["score"] == 1.0
+
+    def test_claude_style_verbose(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(
+            predictions=["The answer is D because the formula requires..."],
+            references=["D"],
+        )
+        assert result["score"] == 1.0
+
+    def test_number_with_answer_tag(self):
+        ev = ExactMatchEvaluator()
+        result = ev.evaluate(
+            predictions=["Step 1: 5*6=30\nStep 2: 30+54=84\n\nAnswer: 84"],
+            references=["84"],
+        )
+        assert result["score"] == 1.0
+
+
+class TestF1EMRobust:
+    def test_answer_tag_extraction(self):
+        ev = F1EMEvaluator()
+        result = ev.evaluate(predictions=["답: 블로그"], references=["블로그"])
+        assert result["em"] == 1.0
+
+    def test_thinking_stripped(self):
+        ev = F1EMEvaluator()
+        result = ev.evaluate(
+            predictions=["<think>Let me analyze...</think>블로그"],
+            references=["블로그"],
+        )
+        assert result["f1"] == 1.0
+
+    def test_quoted_answer(self):
+        ev = F1EMEvaluator()
+        result = ev.evaluate(predictions=['"블로그"'], references=["블로그"])
+        assert result["f1"] == 1.0
+
+
 from benchmark.evaluators.llm_judge import LLMJudgeEvaluator
 
 
