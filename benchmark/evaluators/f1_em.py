@@ -2,32 +2,31 @@ import re
 from collections import Counter
 
 from benchmark.evaluators import register_evaluator
+from benchmark.evaluators.common import strip_thinking, extract_answer_tag
 
 
 def _extract_answer(text: str) -> str:
-    """Extract the final answer from verbose/thinking model output."""
-    # Strip </think> tag and take only the part after it
-    if "</think>" in text:
-        text = text.split("</think>")[-1]
-
+    """Extract the final answer from verbose model output."""
+    text = strip_thinking(text)
     text = text.strip()
+
     if not text:
         return ""
 
-    # Try to find explicit answer markers
-    patterns = [
-        r"(?:답|answer|답변)[은는이\s:]+(.+?)(?:\n|$)",
-        r"(?:최종\s*답|final\s*answer)[은는이\s:]+(.+?)(?:\n|$)",
-    ]
-    for pattern in patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        if matches:
-            return matches[-1].strip()
+    # 1. Explicit "Answer: X" or "답: X" tag
+    answer = extract_answer_tag(text)
+    if answer:
+        return answer.strip('"').strip("'")
 
-    # Take the last non-empty line (after </think>, this is usually the answer)
+    # 2. Quoted answer
+    quoted = re.findall(r'["\']([^"\']+)["\']', text)
+    if quoted and len(quoted[-1]) < 100:
+        return quoted[-1]
+
+    # 3. Last non-empty line
     lines = [l.strip() for l in text.split("\n") if l.strip()]
     if lines:
-        return lines[-1]
+        return lines[-1].strip('"').strip("'")
 
     return text
 
