@@ -21,7 +21,9 @@ B. {b}
 C. {c}
 D. {d}
 
-Answer:"""
+Answer:
+
+Reply with ONLY the letter (A, B, C, or D). No explanation."""
 
 
 @register_dataset("longbench")

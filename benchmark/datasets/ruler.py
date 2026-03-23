@@ -105,7 +105,7 @@ class RulerDataset(BaseDataset):
                     f"Read the following document carefully and answer the question at the end.\n\n"
                     f"{context}\n\n"
                     f"Question: {needle_info['question']}\n"
-                    f"Answer concisely:"
+                    f"Answer concisely with only the answer, no explanation:"
                 )
 
                 pos_label = {0.1: "beginning", 0.5: "middle", 0.9: "end"}.get(pos, f"{pos:.0%}")

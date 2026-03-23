@@ -15,7 +15,9 @@ B. {b}
 C. {c}
 D. {d}
 
-정답:"""
+정답:
+
+Reply with ONLY the letter (A, B, C, or D). No explanation."""
 
 
 @register_dataset("kmmlu")
