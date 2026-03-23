@@ -5,6 +5,8 @@ import yaml
 
 VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge", "cer"}
 
+# Note: mmlu uses exact_match evaluator, no new evaluator needed
+
 _ENV_PATTERN = re.compile(r"\$\{(\w+)\}")
 
 

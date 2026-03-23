@@ -9,6 +9,10 @@ judge:
   api_key: ${JUDGE_API_KEY}
 
 datasets:
+  mmlu:
+    enabled: true
+    samples: 200
+    evaluator: exact_match
   kmmlu:
     enabled: true
     samples: 200
