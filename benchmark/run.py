@@ -9,7 +9,7 @@ from datetime import datetime
 
 from tqdm import tqdm
 
-from benchmark.client import BenchmarkClient, GenerateResult
+from benchmark.client import BenchmarkClient, ClaudeNativeClient, GenerateResult, create_client
 from benchmark.config import load_config, validate_config
 from benchmark.datasets import DATASET_REGISTRY
 from benchmark.datasets.base import Sample
@@ -255,12 +255,7 @@ class BenchmarkRunner:
 
             for mi, model in enumerate(models):
                 model_name = model["name"]
-                client = BenchmarkClient(
-                    base_url=model["base_url"],
-                    api_key="",
-                    timeout=self.settings["timeout"],
-                    max_concurrent=self.settings["concurrent_requests"],
-                )
+                client = create_client(model, self.settings)
 
                 results[ds_name][model_name] = {}
 
