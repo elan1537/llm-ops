@@ -23,6 +23,9 @@ import benchmark.datasets.summarization
 import benchmark.datasets.docvqa
 import benchmark.datasets.ocrbench
 import benchmark.datasets.mmlu
+import benchmark.datasets.arc
+import benchmark.datasets.hellaswag
+import benchmark.datasets.humaneval
 import benchmark.datasets.longbench
 import benchmark.datasets.ruler
 import benchmark.datasets.pdf_ocr
@@ -32,6 +35,7 @@ import benchmark.evaluators.f1_em
 import benchmark.evaluators.anls
 import benchmark.evaluators.llm_judge
 import benchmark.evaluators.cer
+import benchmark.evaluators.code_exec
 
 
 def _fmt_duration(seconds: float) -> str:
@@ -142,6 +146,9 @@ class BenchmarkRunner:
                     }
             return result
         elif evaluator_name == "cer":
+            sample_metadata = [s.metadata for s in samples]
+            return evaluator.evaluate(predictions, references, metadata=sample_metadata)
+        elif evaluator_name == "code_exec":
             sample_metadata = [s.metadata for s in samples]
             return evaluator.evaluate(predictions, references, metadata=sample_metadata)
         else:

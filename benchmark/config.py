@@ -3,7 +3,7 @@ import re
 
 import yaml
 
-VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge", "cer"}
+VALID_EVALUATORS = {"exact_match", "f1_em", "anls", "llm_judge", "cer", "code_exec"}
 
 # Note: mmlu uses exact_match evaluator, no new evaluator needed
 
