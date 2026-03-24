@@ -3,9 +3,9 @@ models:
     base_url: http://localhost:8000/v1
     model_id: Qwen/Qwen3.5-27B
     vision: true
-  - name: qwen3.5-35b-claude
+  - name: qwen3.5-27b-claude
     base_url: http://localhost:8000/v1
-    model_id: Jackrong/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled
+    model_id: Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled
     vision: true
 judge:
   base_url: http://${JUDGE_HOST}:8317/v1
@@ -17,6 +17,18 @@ datasets:
     enabled: true
     samples: 200
     evaluator: exact_match
+  arc:
+    enabled: true
+    samples: 200
+    evaluator: exact_match
+  hellaswag:
+    enabled: true
+    samples: 200
+    evaluator: exact_match
+  humaneval:
+    enabled: true
+    samples: 50
+    evaluator: code_exec
   kmmlu:
     enabled: true
     samples: 200
